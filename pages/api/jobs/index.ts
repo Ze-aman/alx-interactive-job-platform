@@ -1,24 +1,36 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { withAuth } from '@/lib/auth';
-import { db } from '@/lib/database';
-import { v4 as uuid } from 'uuid';
+import { getFilteredJobs } from '@/services/job.service';
 
-async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const user = (req as any).user;
-
-  if (req.method === 'POST') {
-    const { company_id, title } = req.body;
-
-    await db.query(
-      'INSERT INTO jobs VALUES (?, ?, ?, "OPEN", NOW())',
-      [uuid(), company_id, title]
-    );
-
-    return res.status(201).json({ message: 'Job created' });
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ message: 'Method Not Allowed' });
   }
 
-  const [jobs] = await db.query('SELECT * FROM jobs');
-  res.status(200).json(jobs);
-}
+  try {
+    const {
+      category,
+      location,
+      experience,
+      search,
+      page,
+      limit,
+    } = req.query;
 
-export default withAuth(handler, [2]); // Employer
+    const result = await getFilteredJobs({
+      category: category as string,
+      location: location as string,
+      experience: experience as any,
+      search: search as string,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 10,
+    });
+
+    res.status(200).json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Failed to fetch jobs' });
+  }
+}
